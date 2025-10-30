@@ -1,0 +1,12 @@
+# Основные зависимости
+fastapi==0.104.1
+uvicorn==0.24.0
+httpx==0.25.2
+python-dotenv==1.0.0
+
+# LangChain совместимые версии
+langchain==0.0.353
+langchain-community==0.0.10
+langchain-core==0.1.23
+pydantic==2.5.0
+pydantic-core==2.14.0
