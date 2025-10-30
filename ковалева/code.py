@@ -5,7 +5,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 import re
 
-os.environ["OPENAI_API_KEY"] = "ZDU2NzgzYmItNzQxYS00MWM5LWIwNjgtNzMxZTE5MWVlMzZm.2af17b95eeb186a39e21eda686687b64"
+os.environ["OPENAI_API_KEY"] = "ZDBlODVjYmEtYjM5Yy00MmNkLWIyMDctMzZhMjZlNGNkZTFk.7ff2e50821f8d6628d38265b462d645c"
 os.environ["OPENAI_API_BASE"] = "https://foundation-models.api.cloud.ru/v1"
 
 
