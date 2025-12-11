@@ -9,6 +9,25 @@ os.environ["OPENAI_API_KEY"] = "MThjNTMwNjQtOWM0MC00NmEwLWI1NmUtZmM0ODIwMzFhMjMz
 os.environ["OPENAI_API_BASE"] = "https://foundation-models.api.cloud.ru/v1"
 
 
+def check_available_models():
+    """Проверяет доступные модели в API Cloud.ru"""
+    try:
+        from openai import OpenAI
+        client = OpenAI(
+            api_key=os.environ["OPENAI_API_KEY"],
+            base_url=os.environ["OPENAI_API_BASE"]
+        )
+        models = client.models.list()
+        print("\nДоступные модели в API Cloud.ru:")
+        for model in models.data:
+            print(f"- {model.id}")
+        return [model.id for model in models.data]
+    except Exception as e:
+        print(f"Ошибка при получении списка моделей: {e}")
+        # Возвращаем список вероятно доступных моделей
+        return ["deepseek-ai/DeepSeek-R1-Distill-Llama-70B", "gpt-3.5-turbo", "gpt-4"]
+
+
 def is_valid_frontend_query(text: str) -> tuple[bool, str]:
     """
     Проверяет, является ли текст осмысленным запросом по фронтенд-разработке.
@@ -298,17 +317,49 @@ const handleClick = () => {
     return "Пример кода будет зависеть от конкретной задачи. Уточните: технологию, задачу и требуемую функциональность."
 
 
+@tool
+def general_knowledge_search(topic: str) -> str:
+    """
+    Поиск общей информации по различным темам.
+    Args:
+        topic: тема для поиска информации.
+    """
+    general_knowledge = {
+        "погода": "Я не имею доступа к актуальным данным о погоде. Рекомендую использовать специализированные сервисы.",
+        "новости": "Для получения актуальных новостей рекомендую обратиться к новостным порталам или агрегаторам.",
+        "кофе": "Кофе - популярный напиток, приготовляемый из обжаренных кофейных зерен. Существует множество способов его приготовления.",
+        "программирование": "Программирование - процесс создания компьютерных программ с использованием языков программирования.",
+        "искусственный интеллект": "ИИ - область компьютерных наук, занимающаяся созданием машин, способных выполнять задачи, требующие человеческого интеллекта.",
+        "спорт": "Спорт - деятельность, направленная на физическое развитие, соревнование и поддержание здоровья.",
+        "музыка": "Музыка - вид искусства, использующий звук и тишину, организованные во времени.",
+        "литература": "Литература - искусство слова, включающее поэзию, прозу и драматургию."
+    }
+
+    return general_knowledge.get(topic.lower(),
+                                 "Интересующая вас тема требует более специализированных знаний. Могу помочь с фронтенд-разработкой!")
+
+
 class FrontendExpert:
-    """Эксперт по фронтенд-разработке"""
+    """Эксперт по фронтенд-разработке с автоподбором модели"""
     
     def __init__(self):
+        print("\n🔍 Инициализация фронтенд-эксперта...")
+
+        # 1. Найти работающую модель
+        working_model = self._find_working_model()
+        print(f"✅ Используем модель: {working_model}")
+
+        # 2. Создать модель с найденным именем
         self.model = ChatOpenAI(
-            model="deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+            model=working_model,
             temperature=0.3,
             openai_api_key=os.environ["OPENAI_API_KEY"],
-            openai_api_base=os.environ["OPENAI_API_BASE"]
+            openai_api_base=os.environ["OPENAI_API_BASE"],
+            max_retries=2,
+            request_timeout=30
         )
-        
+
+        # 3. Определить инструменты
         self.tools = [
             react_help,
             vue_help,
@@ -317,47 +368,92 @@ class FrontendExpert:
             javascript_help,
             build_tools_help,
             debugging_help,
-            provide_code_example
+            provide_code_example,
+            general_knowledge_search
         ]
+
         self.memory = MemorySaver()
-        
+
+        # 4. Системный промпт
         self.system_prompt = """
 Ты — эксперт по фронтенд-разработке, обладающий глубокими знаниями в области современных технологий, библиотек и практик. Твоя основная задача — выступать в роли помощника, наставника и консультанта для фронтенд-разработчика.
 
-Ты должен предоставлять структурированные, ясные и развернутые ответы, включающие рекомендации, пошаговые инструкции, примеры кода и советы по оптимизации. В случае сложных вопросов используй технику chain-of-thought для разложения задачи на части и системного подхода к решению.
+Твои основные особенности:
+- Имеешь глубокие знания в React, Vue, Angular, JavaScript/TypeScript, CSS и инструментах сборки
+- Можешь отвечать на общие вопросы по программированию и технологиям
+- Всегда стараешься быть полезным и давать точные ответы
 
-Твои основные функции:
-- Помощь в написании, оптимизации и отладке фронтенд-кода (React, Vue, Angular, CSS, HTML, JavaScript/TypeScript).
-- Обучение новым технологиям, библиотекам и паттернам.
-- Решение ошибок, багов и проблем с производительностью.
-- Консультации по архитектуре приложений и best practices.
-- Автоматизация рутинных задач и генерация шаблонов.
+Принципы работы:
+1. Будь дружелюбным, терпеливым и отзывчивым
+2. Если не знаешь ответа - честно говори об этом
+3. Для сложных вопросов разбивай их на логические этапы (chain-of-thought)
+4. Предлагай несколько вариантов решений, объясняя плюсы и минусы каждого
+5. Используй технику few-shot, предоставляя примеры кода и решений
 
-Инструкции по взаимодействию:
-- Задавай уточняющие вопросы, чтобы понять контекст задачи.
-- Предлагай несколько вариантов решений, объясняя плюсы и минусы каждого.
-- Используй технику few-shot, предоставляя примеры кода и решений.
-- В случае сложных задач разбивай их на логические этапы (chain-of-thought).
-
-Ограничения:
-- Не давай общих советов без конкретных примеров.
-- Не выходи за рамки фронтенд-технологий и платформы coze.
-- Не делай предположений без уточнения у пользователя.
-- Стремись к ясности, избегай двусмысленностей.
+Структура ответа:
+1. Понятный и прямой ответ на вопрос
+2. Примеры кода, если они уместны
+3. Дополнительные рекомендации и best practices
+4. Предложение помощи по другим вопросам
 
 Типичные задачи, которые ты можешь решать:
-- Создание и оптимизация React/Vue/Angular компонентов.
-- Настройка сборщиков, Webpack, Vite.
-- Работа с API, интеграция данных.
-- Обработка ошибок, отладка и профилирование.
+- Создание и оптимизация React/Vue/Angular компонентов
+- Настройка сборщиков, Webpack, Vite
+- Работа с API, интеграция данных
+- Обработка ошибок, отладка и профилирование
+- Responsive design и CSS анимации
 """
 
-        self.agent = create_react_agent(
-            model=self.model,
-            tools=self.tools,
-            checkpointer=self.memory,
-            prompt=self.system_prompt
-        )
+        # 5. Создать агента с обработкой ошибок
+        try:
+            self.agent = create_react_agent(
+                model=self.model,
+                tools=self.tools,
+                checkpointer=self.memory,
+                prompt=self.system_prompt
+            )
+            print("✅ Реактивный агент успешно создан!")
+            self.agent_type = "react_agent"
+        except Exception as e:
+            print(f"⚠️  Не удалось создать реактивного агента: {str(e)[:100]}...")
+            print("Использую простую модель без инструментов...")
+            self.agent_type = "simple_model"
+            print("✅ Простая модель успешно создана!")
+
+    def _find_working_model(self):
+        """Автоматический подбор работающей модели"""
+        print("🔎 Поиск доступной модели...")
+
+        # Получить список доступных моделей
+        available_models = check_available_models()
+
+        if not available_models:
+            print("⚠️  Не удалось получить список моделей, использую стандартный набор")
+            available_models = ["deepseek-ai/DeepSeek-R1-Distill-Llama-70B", "gpt-3.5-turbo", "gpt-4"]
+
+        # Протестировать каждую модель
+        for model_name in available_models:
+            try:
+                print(f"  Пробую модель: {model_name}")
+                test_model = ChatOpenAI(
+                    model=model_name,
+                    temperature=0.1,
+                    openai_api_key=os.environ["OPENAI_API_KEY"],
+                    openai_api_base=os.environ["OPENAI_API_BASE"],
+                    max_retries=1,
+                    request_timeout=10
+                )
+                # Простой тестовый запрос
+                test_response = test_model.invoke("Привет")
+                print(f"  ✅ Модель {model_name} работает!")
+                return model_name
+            except Exception as e:
+                print(f"  ❌ Модель {model_name} не работает: {str(e)[:80]}...")
+                continue
+
+        # Если ни одна модель не сработала
+        print("⚠️  Не найдено работающих моделей, использую deepseek-ai/DeepSeek-R1-Distill-Llama-70B по умолчанию")
+        return "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
 
     def process_question(self, question: str, thread_id: str = "frontend-session-1") -> str:
         """Обрабатывает вопрос по фронтенд-разработке и возвращает ответ"""
@@ -366,19 +462,22 @@ class FrontendExpert:
         if not is_valid:
             return f"❌ {reason}\n\nПожалуйста, опишите ваш вопрос по фронтенд-разработке более подробно."
         
-        config = {"configurable": {"thread_id": thread_id}}
-        
         try:
-            response = self.agent.invoke(
-                {"messages": [{"role": "user", "content": question}]},
-                config=config
-            )
-            
-            last_message = response["messages"][-1]
-            return last_message.content
+            if self.agent_type == "react_agent":
+                config = {"configurable": {"thread_id": thread_id}}
+                response = self.agent.invoke(
+                    {"messages": [{"role": "user", "content": question}]},
+                    config=config
+                )
+                last_message = response["messages"][-1]
+                return last_message.content
+            else:
+                # Для простой модели
+                response = self.model.invoke(question)
+                return response.content
             
         except Exception as e:
-            return f"Произошла ошибка при обработке вопроса: {str(e)}"
+            return f"Произошла ошибка при обработке вопроса: {str(e)}\n\nПопробуйте переформулировать вопрос."
 
 
 def create_frontend_expert() -> FrontendExpert:
@@ -388,13 +487,22 @@ def create_frontend_expert() -> FrontendExpert:
 
 def run_frontend_assistant():
     """Запускает сессию помощи по фронтенд-разработке"""
-    expert = create_frontend_expert()
-    
     print("=" * 70)
     print("           ЭКСПЕРТ ПО ФРОНТЕНД-РАЗРАБОТКЕ")
+    print("              (с автоподбором модели)")
     print("=" * 70)
-    
+
+    expert = create_frontend_expert()
+
+    print("\n" + "=" * 70)
+    print("💻 Ассистент готов к работе!")
+    print(f"📊 Тип агента: {expert.agent_type}")
+    print("=" * 70)
     print("\nПривет, чем я могу тебе помочь?\n")
+    print("Доступные команды:")
+    print("  - 'выход', 'exit', 'quit' - завершить работу")
+    print("  - Ctrl+C - аварийное завершение")
+    print("-" * 70 + "\n")
 
     while True:
         try:
